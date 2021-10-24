@@ -32,6 +32,7 @@ type WebHookConfig struct {
 
 type HookRequest struct {
 	TAlert       string `json:"alert_type"`
+	TargetHost   string `json:"target_host"`
 	NameAlert    string `json:"alert_name"`
 	SearchPeriod string `json:"search_period"`
 	HitOpertor   string `json:"hit_oeprator"`
@@ -113,6 +114,7 @@ func (hook *WebHook) postHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var m HookRequest
 	if err := json.Unmarshal(bytes, &m); err != nil {
+		log.Errorf("body error: %v", string(bytes))
 		log.Errorf("error decoding message: %v", err)
 		http.Error(w, "request body is not valid json", 400)
 		return
@@ -136,11 +138,15 @@ func (hook *WebHook) processAlerts() {
 			host := hook.config.ZabbixHostAnnotation
 			// Send alerts only if a host annotation is present or configuration for default host is not empty
 			if host != "" {
+				if a.TargetHost != "" {
+					host = a.TargetHost
+				}
 				key := fmt.Sprintf("%s.%s", hook.config.ZabbixKeyPrefix, a.Status)
 				value := a.NameAlert
 				log.Infof("added Zabbix metrics, host: '%s' key: '%s', value: '%s'", host, key, value)
 				metrics = append(metrics, zabbix.NewMetric(host, key, value))
 			}
+
 		default:
 			if len(metrics) != 0 {
 				hook.zabbixSend(metrics)
